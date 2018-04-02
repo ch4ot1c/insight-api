@@ -19,7 +19,7 @@ var rpcConfig = {
   user: 'local',
   pass: 'localtest',
   host: '127.0.0.1',
-  port: 58332,
+  port: 57932,
   rejectUnauthorized: false
 };
 
@@ -32,7 +32,7 @@ var outputKeys = [];
 var rpc1 = new RPC(rpcConfig);
 var debug = true;
 var bitcoreDataDir = '/tmp/bitcore';
-var bitcoinDataDirs = ['/tmp/bitcoin'];
+var bitcoinDataDirs = ['/tmp/btcprivate'];
 
 var bitcoin = {
   args: {
@@ -43,10 +43,10 @@ var bitcoin = {
     rpcuser: 'local',
     rpcpassword: 'localtest',
     //printtoconsole: 1
-    rpcport: 58332,
+    rpcport: 57932,
   },
   datadir: null,
-  exec: 'bitcoind', //if this isn't on your PATH, then provide the absolute path, e.g. /usr/local/bin/bitcoind
+  exec: '/home/ubuntu/BitcoinPrivate/src/btcpd', // (bitcoind), if this isn't on your PATH, then provide the absolute path, e.g. /usr/local/bin/btcpd or bitcoind
   processes: []
 };
 
@@ -95,7 +95,6 @@ var bitcore = {
 };
 
 var startBitcoind = function(count, callback) {
-
   var listenCount = 0;
   async.timesSeries(count, function(n, next) {
 
@@ -122,34 +121,37 @@ var startBitcoind = function(count, callback) {
           return next(err);
         }
 
-        var args = bitcoin.args;
-        var argList = Object.keys(args).map(function(key) {
-          return '-' + key + '=' + args[key];
+        fs.appendFile('/tmp/btcprivate/btcprivate.conf', '', function (err) {
+          if (err) { console.log(err); return next(err); }
+
+          var args = bitcoin.args;
+          var argList = Object.keys(args).map(function(key) {
+            return '-' + key + '=' + args[key];
+          });
+  
+          var bitcoinProcess = spawn(bitcoin.exec, argList, bitcoin.opts);
+          bitcoin.processes.push(bitcoinProcess);
+  
+          bitcoinProcess.stdout.on('data', function(data) {
+  
+            if (debug) {
+              process.stdout.write(data.toString());
+            }
+  
+          });
+  
+          bitcoinProcess.stderr.on('data', function(data) {
+  
+            if (debug) {
+              process.stderr.write(data.toString());
+            }
+  
+          });
+          
+          next();
+
         });
-
-        var bitcoinProcess = spawn(bitcoin.exec, argList, bitcoin.opts);
-        bitcoin.processes.push(bitcoinProcess);
-
-        bitcoinProcess.stdout.on('data', function(data) {
-
-          if (debug) {
-            process.stdout.write(data.toString());
-          }
-
-        });
-
-        bitcoinProcess.stderr.on('data', function(data) {
-
-          if (debug) {
-            process.stderr.write(data.toString());
-          }
-
-        });
-
-        next();
-
       });
-
     });
   }, function(err) {
 
@@ -290,6 +292,7 @@ var buildInitialChain = function(callback) {
     },
     function(unspent, key, next) {
       startingAddr = unspent.address;
+      console.log(startingAddr);
       var utxo = { txId: unspent.txid, address: startingAddr, satoshis: unspent.amount * 1e8, script: unspent.scriptPubKey, outputIndex: unspent.vout };
       startingTx = buildInitialTx(utxo, key, next);
       rpc1.sendRawTransaction(startingTx.uncheckedSerialize(), next);
